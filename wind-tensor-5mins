@@ -1,0 +1,227 @@
+% for the tensor of windfarm prediction
+
+N1 = 365*24*6
+
+WS_MIN = 1e-3;
+MET_2009='C:\Users\yunchuanl\Downloads\WinPython\notebooks\MET_2009.csv';
+MET_2010='C:\Users\yunchuanl\Downloads\WinPython\notebooks\MET_2010.csv';
+
+GE_2009='C:\Users\yunchuanl\Downloads\WinPython\notebooks\GE_kW_2009.csv';
+GE_2010='C:\Users\yunchuanl\Downloads\WinPython\notebooks\GE_kW_2010.csv';
+
+WS1_2010 = csvread(MET_2010, 1,5, [1,5,N1,5]);
+ind = find(~isnan(WS1_2010));
+WS1_2010_preprocessed = interp1(ind, WS1_2010(ind), (1:N1)', 'linear', 'extrap');
+for i=1:N1
+    WS1_2010_preprocessed(i) = max(WS1_2010_preprocessed(i), WS_MIN);
+end
+clear WS1_2010;
+
+
+WS2_2010 = csvread(MET_2010, 1,7, [1,7,N1,7]);
+ind = find(~isnan(WS2_2010));
+WS2_2010_preprocessed = interp1(ind, WS2_2010(ind), (1:N1)', 'linear', 'extrap');
+for i=1:N1
+    WS2_2010_preprocessed(i) = max(WS2_2010_preprocessed(i), WS_MIN);
+end
+clear WS2_2010;
+
+for i=1:N1
+	WS_2010(i)=(WS1_2010_preprocessed(i)+WS2_2010_preprocessed(i))/2;
+end
+clear WS1_2010_preprocessed;
+clear WS2_2010_preprocessed;
+
+METDIR_A_2010 = csvread(MET_2010, 1,6, [1,6,N1,6]);
+ind = find(~isnan(METDIR_A_2010));
+METDIR_A_2010_preprocessed = interp1(ind, METDIR_A_2010(ind), (1:N1)', 'linear', 'extrap');
+for i=1:N1
+    METDIR_A_2010_preprocessed(i) = max(METDIR_A_2010_preprocessed(i), WS_MIN);
+end
+
+clear ind METDIR_A_2010;
+
+METDIR_H_2010 = csvread(MET_2010, 1,12, [1,12,N1,12]);
+ind = find(~isnan(METDIR_H_2010));
+METDIR_H_2010_preprocessed = interp1(ind, METDIR_H_2010(ind), (1:N1)', 'linear', 'extrap');
+for i=1:N1
+    METDIR_H_2010_preprocessed(i) = max(METDIR_H_2010_preprocessed(i), WS_MIN);
+end
+clear ind METDIR_H_2010 ;
+
+for i=1:N1
+	METDIR_2010(i)=(METDIR_A_2010_preprocessed(i)+METDIR_H_2010_preprocessed(i))/2;
+end
+clear ind METDIR_A_2010_preprocessed
+clear ind METDIR_H_2010_preprocessed
+
+
+N2=2000;
+for i=1:N2
+GE_PW=csvread(GE_2010, i,5, [i,5,i,57]);   %get ith line 
+A=GE_PW;
+A(A<0)=0;
+B=METDIR_2010(i)*ones(1,length(A));
+D=WS_2010(i)*ones(1,length(A));
+C(:,:,i)=[A;B;D];
+end
+
+N2=2100;
+for i=1:N2
+GE_PW=csvread(GE_2010, i,5, [i,5,i,57]);   %get ith line 
+A=GE_PW;
+A(A<0)=0;
+B=METDIR_2010(i)*ones(1,length(A));
+D=WS_2010(i)*ones(1,length(A));
+Ground(:,:,i)=[A;B;D];
+end
+
+C2=zeros(1,max(size(A)));
+for i=N2+1:N2+100
+B=METDIR_2010(i)*ones(1,length(A));
+C(:,:,i)=[C2;B;D];
+end
+
+
+
+
+r=53;
+
+[W,H,Q, Vhat] =betaNTF(C(:,:,1:N2),r);
+
+S = C(:,:,1:N2)-Vhat;
+S=tensor(S);
+m(r)=norm(S);
+
+wff=W;
+hff=H;
+
+q=Q;%all the value of q
+
+
+%size(wff(:,1))
+
+%size(hff(:,1))
+
+%wff(:,1)*hff(:,1)
+%outer productW
+
+
+
+
+
+
+
+%how to get the initial q
+
+
+
+
+%q(401,:)=q(400,:);
+
+for j=2001:2011
+	q(j,:)=q(j-1,:);
+
+	cnt=0;
+	order=10;
+	lada=10;
+	j
+	for cnt=1:90
+
+	%cost function
+		M=C(:,:,j);
+		sim3=0;   
+		for ii=1:order
+		sim3=((norm(q(j-ii,:)- q(j,:))))^2+sim3;
+		end
+		reM=0;
+		for i=1:r
+			test={wff(:,i) hff(:,i)};
+			T= outer_product(test);
+			reM=q(j,i)*T+reM;
+		end
+
+		
+		cnt;
+		J=norm(M-reM)+lada*sim3;
+
+		%%%%%%%%%%%%      对角矩阵 W      %%%%%%%%%%%%%%%%%%%%%%%%
+		[m1,m2]=size(M);
+		W= zeros(m1*m2,m1*m2);% by missing data to 0
+		for i=1:(m1*m2)
+			W(i,i)=1;
+		end
+
+		b=find(M==0);
+		[m3,m4]=size(b);
+		for i=1:m3
+		W(b(i),b(i))=0;% find the missing data
+		end
+
+
+
+		M=C(:,:,j);
+		[m1,m2]=size(M);
+		M2 = reshape(M,[1,m1*m2]);%vectorizes of M
+		X=ones(r,m1*m2);
+		%M2*W*X'
+		%q(401,i)*X*W*X';
+
+		simi=0;
+		for ii=1:order
+		simi=norm(q(j-ii,:)- q(j,:))+simi;
+		end
+		term3=q(j,:).*simi;
+		
+		term2=0;  
+	%	term2=ones(1,r);
+		for ii=1:order
+		term2=(norm(q(j-ii,:)- q(j,:))).*q(j,:)+term2;
+		end
+		
+		
+		for i=1:r
+		test ={wff(:,i) hff(:,i)};
+		T= outer_product(test);
+		[m1,m2]=size(T);
+		T = reshape(T,[1,m1*m2]);
+		X(i,:)=T;
+		end
+		X=X';
+		%update function
+
+		term1=((M2*W*X+lada*term2)./(q(j,:)*X'*W*X+lada*term3));
+		
+		for i=1:r
+		q(j,i)=q(j,i)*term1(i);
+		end
+		
+	end
+end
+
+
+for j=2001:2011
+	% This is the prediction precess   last process
+	Mbar= 0;
+	for i=1:r
+	test={wff(:,i) hff(:,i)};
+	T= outer_product(test);
+	Mbar= q(j,i)*T+Mbar;
+	end
+
+	% ground truth
+	M=Ground(:,:,j);
+
+
+	x=1:size(Mbar(1,:),2);
+	y1=Mbar(1,:);
+	y2=M(1,:);
+
+	figure(j);
+	plot(x,y1,x,y2);
+	legend('predict','ground truth');
+	%title(['order=',num2str(j)])
+	title(['Tenor completion of ',num2str(j-2000),' x 10 mins ahead prediction']); % 给这幅图命名
+	xlabel('turbine No.');
+	ylabel('turbine Power(Unit: kw)');
+end
