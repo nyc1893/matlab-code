@@ -85,7 +85,7 @@ clear ind METDIR_H_2010_preprocessed
 
 
 %data packaging
-N3=1800;
+N3=1200;
 
 sum_power=0;
 sum_ws=0;
