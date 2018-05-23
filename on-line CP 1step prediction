@@ -1,0 +1,493 @@
+%% Shuo Zhou, Xuan Vinh Nguyen, James Bailey, Yunzhe Jia, Ian Davidson,
+% "Accelerating Online CP Decompositions for Higher Order Tensors",
+% (C) 2016 Shuo Zhou   
+% Email: zhous@student.unimelb.edu.au
+
+% To run the code, Tensor Toolbox is required.
+% Brett W. Bader, Tamara G. Kolda and others. MATLAB Tensor Toolbox 
+% Version 2.6, Available online, February 2015. 
+% URL: http://www.sandia.gov/~tgkolda/TensorToolbox/
+
+%% This is a demo to compare OnlineCP with classic ALS algorithms
+% Batch Cold is typical ALS implemented in Tensor Toolbox
+% Batch Hot uses the previous result as the initialization to ALS
+
+clc;clear;close all;
+addpath(genpath('.'));
+
+N2=2000;
+
+%% generate data
+dims = [53, 2, N2];
+N = length(dims);
+tao = 100;
+%tao = round(0.02*dims(end));
+TT = dims(end)-tao;
+R = 16;
+% X = generateData(dims, R, 20);
+
+
+N1 = 365*24*6
+
+WS_MIN = 1e-3;
+MET_2009='C:\360Downloads\data\2008-2010\whole\MET_2009.csv';
+MET_2010='C:\360Downloads\data\2008-2010\whole\MET_2010.csv';
+
+GE_2009='C:\360Downloads\data\2008-2010\whole\GE_kW_2009.csv';
+GE_2010='C:\360Downloads\data\2008-2010\whole\GE_kW_2010.csv';
+
+MITS_2009='C:\360Downloads\data\2008-2010\whole\Mits_kW_2009.csv';
+MITS_2010='C:\360Downloads\data\2008-2010\whole\Mits_kW_2010.csv';
+
+WS1_2010 = csvread(MET_2010, 1,5, [1,5,N1,5]);
+ind = find(~isnan(WS1_2010));
+WS1_2010_preprocessed = interp1(ind, WS1_2010(ind), (1:N1)', 'linear', 'extrap');
+for i=1:N1
+    WS1_2010_preprocessed(i) = max(WS1_2010_preprocessed(i), WS_MIN);
+end
+clear WS1_2010;
+
+
+WS2_2010 = csvread(MET_2010, 1,7, [1,7,N1,7]);
+ind = find(~isnan(WS2_2010));
+WS2_2010_preprocessed = interp1(ind, WS2_2010(ind), (1:N1)', 'linear', 'extrap');
+for i=1:N1
+    WS2_2010_preprocessed(i) = max(WS2_2010_preprocessed(i), WS_MIN);
+end
+clear WS2_2010;
+
+for i=1:N1
+	WS_2010(i)=(WS1_2010_preprocessed(i)+WS2_2010_preprocessed(i))/2;
+end
+clear WS1_2010_preprocessed;
+clear WS2_2010_preprocessed;
+
+METDIR_A_2010 = csvread(MET_2010, 1,6, [1,6,N1,6]);
+ind = find(~isnan(METDIR_A_2010));
+METDIR_A_2010_preprocessed = interp1(ind, METDIR_A_2010(ind), (1:N1)', 'linear', 'extrap');
+for i=1:N1
+    METDIR_A_2010_preprocessed(i) = max(METDIR_A_2010_preprocessed(i), WS_MIN);
+end
+
+clear ind METDIR_A_2010;
+
+METDIR_H_2010 = csvread(MET_2010, 1,12, [1,12,N1,12]);
+ind = find(~isnan(METDIR_H_2010));
+METDIR_H_2010_preprocessed = interp1(ind, METDIR_H_2010(ind), (1:N1)', 'linear', 'extrap');
+for i=1:N1
+    METDIR_H_2010_preprocessed(i) = max(METDIR_H_2010_preprocessed(i), WS_MIN);
+end
+clear ind METDIR_H_2010 ;
+
+for i=1:N1
+	METDIR_2010(i)=(METDIR_A_2010_preprocessed(i)+METDIR_H_2010_preprocessed(i))/2;
+end
+clear ind METDIR_A_2010_preprocessed
+clear ind METDIR_H_2010_preprocessed
+
+
+N3=1+900*5;
+	y = [
+		0, 50,100,150,200, 250,350,400,530,650,...
+		 800,930, 1080,1180,1300, 1360,1410,1430,1470,1500
+	]; 
+
+	x=3.5:0.5:13;
+	Xq = 0:1:1500;
+
+for i=(N3+1):(N3+N2)
+	GE_PW=csvread(GE_2010, i,5, [i,5,i,57]);   %get ith line 
+	A=GE_PW;
+	A(A<0)=WS_MIN;
+    A(isnan(A))=WS_MIN;
+  %  B=METDIR_2010(i)*ones(1,length(A));
+			for j=1: size(A,2)
+				D(j)=max(interp1(y,x,A(j)),3.5);
+			end
+  %  C(:,:,(i-N3))=[A',B',D'];
+    C(:,:,(i-N3))=[A',D'];
+
+end
+    C(isnan(C))=WS_MIN;
+y2 = [
+	0, 60, 110,150,200,250,330,400,470,570,660,...
+	 750,830,870,940,980,990,1000,1100,1300
+]; 
+
+x2=4.5:0.5:14;
+
+    for i=(N3+1):(N3+N2)
+		MITS_PW=csvread(MITS_2010, i,5, [i,5,i,225]);   %get ith line 
+		E=MITS_PW;
+		E(E<0)=WS_MIN;
+		E(isnan(E))=WS_MIN;
+		%B2=METDIR_2010(i)*ones(1,length(E));
+			for j=1: size(E,2)
+				D2(j)=interp1(y2,x2,E(j));
+			end
+		F(:,:,i-N3)=[E',D2'];
+    end
+
+F(isnan(F))=WS_MIN;
+M=C;
+M2=F;
+%{
+load data_pmu
+k=1;
+for kk=10881:10980
+    for j=1:4
+        for i=1:4
+            if i==1
+                M(i,j,k)=M2(j,kk);
+            elseif i==2
+                M(i,j,k)=M3(j,kk);
+            elseif i==3
+                M(i,j,k)=M4(j,kk);
+            elseif i==4
+                M(i,j,k)=M5(j,kk);
+            end
+        end
+    end
+                k=k+1;
+end
+%}
+ X=tensor(M);
+
+%% Normalizing data
+X=bsxfun(@rdivide,M,sum(M));
+
+%% initialization
+% get initX
+%% generate data
+
+idx = repmat({':'}, 1, length(dims));
+idx(end) = {1:tao};
+initX = X(idx{:});
+
+% factorize initX 
+initOpt.printitn = 1;
+initOpt.maxiters = 100;
+initOpt.tol = 1e-8;
+estInitX = cp_als(tensor(initX), R, initOpt);
+initAs = estInitX.U;
+% absorb lambda into the last dimension
+initAs{end} = initAs{end}*diag(estInitX.lambda);
+
+% initilize each algorithm
+% batch 
+batchHotAs = initAs;
+T=outer_product(initAs);
+% initialize onlineCP method
+[onlinePs, onlineQs] = onlineCP_initial(initX, initAs, R);
+onlineAs = initAs(1:end-1);
+onlineAs_N = initAs{end};
+
+%% adding new data
+minibatchSize = 5;
+k = 1;
+miss_prob=0.8;
+for t=1:minibatchSize:TT
+    clc;
+    fprintf('the %dth steps\n', k);
+    % get the incoming slice
+    endTime = min(tao+t+minibatchSize-1, dims(end));
+    idx(end) = {tao+t:endTime};
+    rnd=rand;
+    if rnd<=(miss_prob) || t==1
+    x = squeeze(X(idx{:}));
+    else
+%         x=zeros(dims(1),dims(2));
+ 
+    x = squeeze(X(idx{:}));
+    for sl=1:minibatchSize
+x(1,:,sl)=zeros(1,2).*x(1,:,sl);%%%%
+% x(2,:,sl)=zeros(1,4).*x(2,:,sl);
+% x(3,:,sl)=zeros(1,4).*x(3,:,sl);
+% x(4,:,sl)=zeros(1,4).*x(4,:,sl);
+    end
+    end
+    
+    numOfSlice = endTime-tao-t+1;
+    % get tensor X of time current time
+    idx(end) = {1:endTime};
+    Xt = X(idx{:});
+
+    % cold batch
+    batchColdOpt.printitn = 0;
+    tic;
+    batchColdXt = cp_als(tensor(Xt), R, batchColdOpt);
+    runtime = toc;
+    time(1, k) = runtime;
+    fitness(1, k) = 1-(norm(tensor(Xt)-full(batchColdXt))/norm(tensor(Xt)));
+
+    % hot batch
+    tic;
+    % estimate the projection of new data on the time mode
+    batchHotAlpha = reshape(permute(x, [N, 1:N-1]), numOfSlice, [])...
+        *khatrirao(batchHotAs(1:end-1), 'r')/getHadamard(batchHotAs(1:end-1));
+    batchHotAs{end} = [batchHotAs{end}; batchHotAlpha];
+    batchHotOpt.printitn = 0;
+    batchHotOpt.init = batchHotAs;
+    batchHotXt = cp_als(tensor(Xt), R, batchHotOpt);
+    batchHotAs = batchHotXt.U;
+    batchHotAs{end} = batchHotAs{end}*diag(batchHotXt.lambda);
+    runtime = toc;
+    time(2, k) = runtime;
+    fitness(2, k) = 1-(norm(tensor(Xt)-full(batchHotXt))/norm(tensor(Xt)));
+
+    % online CP
+%     if rnd<=(miss_prob)
+    tic;
+    [onlineAs, onlinePs, onlineQs, onlineAlpha] = onlineCP_update(x, onlineAs, onlinePs, onlineQs);
+%     end
+
+    runtime = toc;
+%     tmp = [onlineAs; {onlineAs_N}];
+    time(3, k) = runtime;
+%     fitness(3, k) = 1-(norm(tensor(Xt)-full(ktensor(tmp)))/norm(tensor(Xt)));
+    %%
+    
+    Est_cell={onlineAs{1};onlineAs{2};onlineAs_N((end-tao+1):end,:)};
+    
+    
+  %  Est_cell={onlineAs{1};onlineAs{2};onlineAs_N(end,:)+onlineAs_N(end-1,:)+onlineAs_N(end-2,:)};
+    %((end-tao+1):end,:)
+    Est_ten=outer_product(Est_cell);
+    %(tao+t):(tao+t+minibatchSize-1)
+    Tur(:,t:t+minibatchSize-1)=Est_ten(:,1,(end-minibatchSize+1):tao);
+    Tur2(:,t:t+minibatchSize-1)=X(:,1,(tao+t:tao+t+minibatchSize-1));
+
+    
+    
+    
+%{
+    
+    Tur_1(t:t+minibatchSize-1,2)=X(1,1,(tao+t:tao+t+minibatchSize-1));
+    Tur_2(t:t+minibatchSize-1,2)=X(2,1,(tao+t:tao+t+minibatchSize-1));
+    Tur_3(t:t+minibatchSize-1,2)=X(3,1,(tao+t:tao+t+minibatchSize-1));
+    Tur_4(t:t+minibatchSize-1,2)=X(4,1,(tao+t:tao+t+minibatchSize-1));
+    Tur_5(t:t+minibatchSize-1,2)=X(5,1,(tao+t:tao+t+minibatchSize-1));
+   %} 
+    Phi_PMU1(t:t+minibatchSize-1,1)=Est_ten(1,2,(end-minibatchSize+1):tao);
+    Phi_PMU1(t:t+minibatchSize-1,2)=X(1,2,(tao+t:tao+t+minibatchSize-1));
+%    I_PMU1(t:t+minibatchSize-1,1)=Est_ten(1,3,(end-minibatchSize+1):tao);
+%    I_PMU1(t:t+minibatchSize-1,2)=X(1,3,(tao+t:tao+t+minibatchSize-1));
+    %
+    %%
+    k = k+1;
+    if rnd<=(miss_prob)
+    onlineAs_N(end+1:end+minibatchSize,:) = onlineAlpha;
+end
+end
+%%
+
+for i=1:TT
+    
+    t1(:,i)=bsxfun(@times,Tur(:,i),sum(M(:,1,tao+i)));
+    t2(:,i)=bsxfun(@times,Tur2(:,i),sum(M(:,1,tao+i)));
+    %{
+DV1(i,:)=bsxfun(@times,Tur_1(i,:),sum(M(:,1,tao+i)));
+DV2(i,:)=bsxfun(@times,Tur_2(i,:),sum(M(:,1,tao+i)));
+DV3(i,:)=bsxfun(@times,Tur_3(i,:),sum(M(:,1,tao+i)));
+DV4(i,:)=bsxfun(@times,Tur_4(i,:),sum(M(:,1,tao+i)));
+DV5(i,:)=bsxfun(@times,Tur_5(i,:),sum(M(:,1,tao+i)));
+%}
+
+%DI(i,:)=bsxfun(@times,I_PMU1(i,:),sum(M(:,3,tao+i)));
+DP(i,:)=bsxfun(@times,Phi_PMU1(i,:),sum(M(:,2,tao+i)));
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+X=tensor(M2);
+
+%% Normalizing data
+X=bsxfun(@rdivide,M2,sum(M2));
+dims = [221, 2, N2];
+%% initialization
+% get initX
+idx = repmat({':'}, 1, length(dims));
+idx(end) = {1:tao};
+initX = X(idx{:});
+
+% factorize initX 
+initOpt.printitn = 1;
+initOpt.maxiters = 100;
+initOpt.tol = 1e-8;
+estInitX = cp_als(tensor(initX), R, initOpt);
+initAs = estInitX.U;
+% absorb lambda into the last dimension
+initAs{end} = initAs{end}*diag(estInitX.lambda);
+
+% initilize each algorithm
+% batch 
+batchHotAs = initAs;
+T=outer_product(initAs);
+% initialize onlineCP method
+[onlinePs, onlineQs] = onlineCP_initial(initX, initAs, R);
+onlineAs = initAs(1:end-1);
+onlineAs_N = initAs{end};
+
+%% adding new data
+minibatchSize = 5;
+k = 1;
+miss_prob=0.8;
+for t=1:minibatchSize:TT
+    clc;
+    fprintf('the %dth steps\n', k);
+    % get the incoming slice
+    endTime = min(tao+t+minibatchSize-1, dims(end));
+    idx(end) = {tao+t:endTime};
+    rnd=rand;
+    if rnd<=(miss_prob) || t==1
+    x = squeeze(X(idx{:}));
+    else
+%         x=zeros(dims(1),dims(2));
+ 
+    x = squeeze(X(idx{:}));
+    for sl=1:minibatchSize
+x(1,:,sl)=zeros(1,2).*x(1,:,sl);%%%%
+% x(2,:,sl)=zeros(1,4).*x(2,:,sl);
+% x(3,:,sl)=zeros(1,4).*x(3,:,sl);
+% x(4,:,sl)=zeros(1,4).*x(4,:,sl);
+    end
+    end
+    
+    numOfSlice = endTime-tao-t+1;
+    % get tensor X of time current time
+    idx(end) = {1:endTime};
+    Xt = X(idx{:});
+
+    % cold batch
+    batchColdOpt.printitn = 0;
+    tic;
+    batchColdXt = cp_als(tensor(Xt), R, batchColdOpt);
+    runtime = toc;
+    time(1, k) = runtime;
+    fitness(1, k) = 1-(norm(tensor(Xt)-full(batchColdXt))/norm(tensor(Xt)));
+
+    % hot batch
+    tic;
+    % estimate the projection of new data on the time mode
+    batchHotAlpha = reshape(permute(x, [N, 1:N-1]), numOfSlice, [])...
+        *khatrirao(batchHotAs(1:end-1), 'r')/getHadamard(batchHotAs(1:end-1));
+    batchHotAs{end} = [batchHotAs{end}; batchHotAlpha];
+    batchHotOpt.printitn = 0;
+    batchHotOpt.init = batchHotAs;
+    batchHotXt = cp_als(tensor(Xt), R, batchHotOpt);
+    batchHotAs = batchHotXt.U;
+    batchHotAs{end} = batchHotAs{end}*diag(batchHotXt.lambda);
+    runtime = toc;
+    time(2, k) = runtime;
+    fitness(2, k) = 1-(norm(tensor(Xt)-full(batchHotXt))/norm(tensor(Xt)));
+
+    % online CP
+%     if rnd<=(miss_prob)
+    tic;
+    [onlineAs, onlinePs, onlineQs, onlineAlpha] = onlineCP_update(x, onlineAs, onlinePs, onlineQs);
+%     end
+
+    runtime = toc;
+%     tmp = [onlineAs; {onlineAs_N}];
+    time(3, k) = runtime;
+%     fitness(3, k) = 1-(norm(tensor(Xt)-full(ktensor(tmp)))/norm(tensor(Xt)));
+    %%
+    
+    Est_cell={onlineAs{1};onlineAs{2};onlineAs_N((end-tao+1):end,:)};
+    
+    
+  %  Est_cell={onlineAs{1};onlineAs{2};onlineAs_N(end,:)+onlineAs_N(end-1,:)+onlineAs_N(end-2,:)};
+    %((end-tao+1):end,:)
+    Est_ten=outer_product(Est_cell);
+    %(tao+t):(tao+t+minibatchSize-1)
+    MitTur(:,t:t+minibatchSize-1)=Est_ten(:,1,(end-minibatchSize+1):tao);
+    MitTur2(:,t:t+minibatchSize-1)=X(:,1,(tao+t:tao+t+minibatchSize-1));
+
+    
+    
+    
+%{
+    
+    Tur_1(t:t+minibatchSize-1,2)=X(1,1,(tao+t:tao+t+minibatchSize-1));
+    Tur_2(t:t+minibatchSize-1,2)=X(2,1,(tao+t:tao+t+minibatchSize-1));
+    Tur_3(t:t+minibatchSize-1,2)=X(3,1,(tao+t:tao+t+minibatchSize-1));
+    Tur_4(t:t+minibatchSize-1,2)=X(4,1,(tao+t:tao+t+minibatchSize-1));
+    Tur_5(t:t+minibatchSize-1,2)=X(5,1,(tao+t:tao+t+minibatchSize-1));
+   %} 
+    MitPhi_PMU1(t:t+minibatchSize-1,1)=Est_ten(1,2,(end-minibatchSize+1):tao);
+    MitPhi_PMU1(t:t+minibatchSize-1,2)=X(1,2,(tao+t:tao+t+minibatchSize-1));
+%    I_PMU1(t:t+minibatchSize-1,1)=Est_ten(1,3,(end-minibatchSize+1):tao);
+%    I_PMU1(t:t+minibatchSize-1,2)=X(1,3,(tao+t:tao+t+minibatchSize-1));
+    %
+    %%
+    k = k+1;
+    if rnd<=(miss_prob)
+    onlineAs_N(end+1:end+minibatchSize,:) = onlineAlpha;
+end
+end
+%%
+
+for i=1:TT
+    
+    Mitt1(:,i)=bsxfun(@times,MitTur(:,i),sum(M(:,1,tao+i)));
+    Mitt2(:,i)=bsxfun(@times,MitTur2(:,i),sum(M(:,1,tao+i)));
+    %{
+DV1(i,:)=bsxfun(@times,Tur_1(i,:),sum(M(:,1,tao+i)));
+DV2(i,:)=bsxfun(@times,Tur_2(i,:),sum(M(:,1,tao+i)));
+DV3(i,:)=bsxfun(@times,Tur_3(i,:),sum(M(:,1,tao+i)));
+DV4(i,:)=bsxfun(@times,Tur_4(i,:),sum(M(:,1,tao+i)));
+DV5(i,:)=bsxfun(@times,Tur_5(i,:),sum(M(:,1,tao+i)));
+%}
+
+%DI(i,:)=bsxfun(@times,I_PMU1(i,:),sum(M(:,3,tao+i)));
+MitDP(i,:)=bsxfun(@times,MitPhi_PMU1(i,:),sum(M(:,2,tao+i)));
+end
+
+
+
+%{
+I_PMU1=DI;
+Phi_PMU1=DP;
+%}
+%{
+figure
+plot(DI(:,1),'r--')
+hold on
+plot(DI(:,2),'b:','LineWidth',2)
+title('Current estimation for PMU 1, one step');
+legend('Estimated','Real');
+xlabel('Step','FontSize',10,'FontWeight','bold');
+ylabel('Current (A)','FontSize',10,'FontWeight','bold');
+%}
+%sum(sum(isnan(Mitt1)))
+yhat=sum(t1)+sum(Mitt1);
+	y1=sum(t2)+sum(Mitt2);
+    
+	%RMSE
+	MSE=mean((y1 - yhat).^2);   % Mean Squared Error
+	RMSE = sqrt(mean((y1 - yhat).^2))  % Root Mean Squared Error
+	%MAPE
+
+	 meanmat=@(a)(mean(mean(a)));
+	MAPE = meanmat(abs(yhat-y1)./y1)*100
+
+	%MAE
+	MAE = mae(y1 - yhat)
+
+figure
+plot(sum(t1),'r--')
+hold on
+plot(sum(t2),'b:','LineWidth',2)
+title(['wind power 1step prediction from ',num2str(N3+tao),'to ',num2str(N3+N2),' of 2010']);
+legend('Prediction','Real');
+xlabel('Step( 10 mins time gaps)','FontSize',10,'FontWeight','bold');
+ylabel('wind power (kw)','FontSize',10,'FontWeight','bold');
+
+
+figure
+plot(DP(:,1),'r--')
+hold on
+plot(DP(:,2),'b:','LineWidth',2)
+title(['wind speed 1step prediction from ',num2str(N3+tao),'to ',num2str(N3+N2),' of 2010']);
+legend('Prediction','Real');
+xlabel('Step( 10 mins time gaps)','FontSize',10,'FontWeight','bold');
+ylabel('m/s','FontSize',10,'FontWeight','bold');
