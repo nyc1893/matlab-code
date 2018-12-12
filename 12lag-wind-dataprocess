@@ -1,0 +1,586 @@
+%% e greedy RL FO-MC for regin based using out of Mits and Ge model
+% only use the basic rules for the Derivative
+% there are 3 features to define a state
+
+clc;clear;close all;
+addpath(genpath('.'));
+
+N1 = 365*24*6
+
+p_2008='C:\360Downloads\data\2008-2010\whole\Total_kW_2008.csv';
+p_2009='C:\360Downloads\data\2008-2010\whole\Total_kW_2009.csv';
+p_2010='C:\360Downloads\data\2008-2010\whole\Total_kW_2010.csv';
+
+p_ge_2008='C:\360Downloads\data\2008-2010\whole\GE_kW_2008.csv';
+p_ge_2009='C:\360Downloads\data\2008-2010\whole\GE_kW_2009.csv';
+p_ge_2010='C:\360Downloads\data\2008-2010\whole\GE_kW_2010.csv';
+
+p_mit_2008='C:\360Downloads\data\2008-2010\whole\Mits_kW_2008.csv';
+p_mit_2009='C:\360Downloads\data\2008-2010\whole\Mits_kW_2009.csv';
+p_mit_2010='C:\360Downloads\data\2008-2010\whole\Mits_kW_2010.csv';
+
+MET_2008='C:\360Downloads\data\2008-2010\whole\MET_2008.csv';
+MET_2009='C:\360Downloads\data\2008-2010\whole\MET_2009.csv';
+MET_2010='C:\360Downloads\data\2008-2010\whole\MET_2010.csv';
+N2 = 10091;% 2008 datasets
+
+%get power data of GE
+RNG = [1,5,N2,57];
+pge_2008=csvread(p_ge_2008, 1, 5,RNG);
+sum_pge_2008 = sum(pge_2008,2);
+clear pge_2008;
+
+RNG = [1,5,N1,57];
+pge_2009=csvread(p_ge_2009, 1, 5,RNG);
+sum_pge_2009 = sum(pge_2009,2);
+clear pge_2009;
+pge_2010=csvread(p_ge_2010, 1, 5,RNG);
+sum_pge_2010 = sum(pge_2010,2);
+clear pge_2010;
+
+%clean power data
+sum_pge_2008(sum_pge_2008<0)=0;
+sum_pge_2009(sum_pge_2009<0)=0;
+sum_pge_2010(sum_pge_2010<0)=0;
+
+sum_pge_2008(isnan(sum_pge_2008))=0;
+sum_pge_2009(isnan(sum_pge_2009))=0;
+sum_pge_2010(isnan(sum_pge_2010))=0;
+
+%get power data of Mits
+RNG = [1,5,N2,225];
+pmit_2008=csvread(p_mit_2008, 1, 5,RNG);
+sum_pmit_2008 = sum(pmit_2008,2);
+clear pmit_2008;
+
+RNG = [1,5,N1,225];
+pmit_2009=csvread(p_mit_2009, 1, 5,RNG);
+sum_pmit_2009 = sum(pmit_2009,2);
+clear pmit_2009;
+pmit_2010=csvread(p_mit_2010, 1, 5,RNG);
+sum_pmit_2010 = sum(pmit_2010,2);
+clear pmit_2010;
+
+
+%clean power data
+sum_pmit_2008(sum_pmit_2008<0)=0;
+sum_pmit_2009(sum_pmit_2009<0)=0;
+sum_pmit_2010(sum_pmit_2010<0)=0;
+
+sum_pmit_2008(isnan(sum_pmit_2008))=0;
+sum_pmit_2009(isnan(sum_pmit_2009))=0;
+sum_pmit_2010(isnan(sum_pmit_2010))=0;
+
+
+
+%get ws data
+RNG = [1,5,N1,5];
+ws_temp1=csvread(MET_2009, 1, 5,RNG);
+RNG = [1,7,N1,7];
+ws_temp2=csvread(MET_2009, 1, 7,RNG);
+ws_2009 = (ws_temp2+ ws_temp1)/2;
+
+RNG = [1,5,N1,5];
+ws_temp1=csvread(MET_2010, 1, 5,RNG);
+RNG = [1,7,N1,7];
+ws_temp2=csvread(MET_2010, 1, 7,RNG);
+ws_2010 = (ws_temp2+ ws_temp1)/2;
+clear ws_temp1;
+clear ws_temp2;
+
+% ws data clean
+b= find(ws_2009<0);
+ws_2009(b)=0;
+
+
+b= find(ws_2009<0);
+ws_2009(b)=0;
+
+b= find(isnan(ws_2009));
+ws_2009(b)=0;
+
+b= find(ws_2010<0);
+ws_2010(b)=0;
+
+b= find(isnan(ws_2010));
+ws_2010(b)=0;
+
+b= find(ws_2009>25);
+ws_2009(b)=0;
+b= find(ws_2010>25);
+ws_2010(b)=0;
+
+
+
+
+%get dir data
+
+RNG = [1,6,N2,6];
+wdir_temp1=csvread(MET_2008, 1, 6,RNG);
+RNG = [1,8,N2,8];
+wdir_temp2=csvread(MET_2008, 1, 8,RNG);
+wdir_2008 = (wdir_temp1+ wdir_temp2)/2;
+b= find(isnan(wdir_2008));
+ws_2008(b)=0;
+
+RNG = [1,6,N1,6];
+wdir_temp1=csvread(MET_2009, 1, 6,RNG);
+RNG = [1,8,N1,8];
+wdir_temp2=csvread(MET_2009, 1, 8,RNG);
+wdir_2009 = (wdir_temp1+ wdir_temp2)/2;
+b= find(isnan(wdir_2009));
+wdir_2009(b)=0;
+
+
+RNG = [1,6,N1,6];
+wdir_temp1=csvread(MET_2010, 1, 6,RNG);
+RNG = [1,8,N1,8];
+wdir_temp2=csvread(MET_2010, 1, 8,RNG);
+wdir_2010 = (wdir_temp1+ wdir_temp2)/2;
+clear wdir_temp1;
+clear wdir_temp2;
+
+b= find(isnan(wdir_2010));
+wdir_2010(b)=0;
+
+
+
+%clean 2009 dir data
+for i = 1:N1
+    wdir_2009(i) = mod(wdir_2009(i),360);
+end
+
+pwdir_2009(1)=wdir_2008(end);
+for i=1+1:size(wdir_2009,1)
+    pwdir_2009(i)=wdir_2009(i-1);
+end
+
+
+for i=1:N1
+    delta_dir_2009(i)=wdir_2009(i)-pwdir_2009(i);
+end
+
+b= find(delta_dir_2009<0);
+delta_dir_2009(b)=delta_dir_2009(b)+360;
+
+
+
+%clean 2010 dir data
+for i = 1:N1
+    wdir_2010(i) = mod(wdir_2010(i),360);
+end
+
+pwdir_2010(1)=wdir_2009(end);
+for i=1+1:size(wdir_2010,1)
+    pwdir_2010(i)=wdir_2010(i-1);
+end
+
+for i=1:N1
+    delta_dir_2010(i)=wdir_2010(i)-pwdir_2010(i);
+end
+
+b= find(delta_dir_2010<0);
+delta_dir_2010(b)=delta_dir_2010(b)+360;
+[f,x] = ksdensity(delta_dir_2010);
+plot(x,f)
+
+
+
+
+
+sum_pmit_2008 = sum_pmit_2008/1000;
+sum_pmit_2009 = sum_pmit_2009/1000;
+sum_pmit_2010 = sum_pmit_2010/1000;
+
+% per_pge_2009(1)=sum_pge_2008(end);
+% for i=1+1:size(sum_pge_2009,1)
+%     per_pge_2009(i)=sum_pge_2009(i-1);
+% end
+% 
+% per_pge_2010(1)=sum_pge_2009(end);
+% for i=1+1:size(sum_pge_2010,1)
+%     per_pge_2010(i)=sum_pge_2010(i-1);
+% end
+
+
+
+
+RNG = [1,5,N2,225];
+pmit_2008=csvread(p_mit_2008, 1, 5,RNG);
+sum_pmit_2008 = sum(pmit_2008,2);
+clear pmit_2008;
+
+RNG = [1,5,N1,225];
+pmit_2009=csvread(p_mit_2009, 1, 5,RNG);
+sum_pmit_2009 = sum(pmit_2009,2);
+clear pmit_2009;
+pmit_2010=csvread(p_mit_2010, 1, 5,RNG);
+sum_pmit_2010 = sum(pmit_2010,2);
+clear pmit_2010;
+
+
+%clean power data
+sum_pmit_2008(sum_pmit_2008<0)=0;
+sum_pmit_2009(sum_pmit_2009<0)=0;
+sum_pmit_2010(sum_pmit_2010<0)=0;
+
+sum_pmit_2008(isnan(sum_pmit_2008))=0;
+sum_pmit_2009(isnan(sum_pmit_2009))=0;
+sum_pmit_2010(isnan(sum_pmit_2010))=0;
+
+
+
+%get ws data
+RNG = [1,5,N1,5];
+ws_temp1=csvread(MET_2009, 1, 5,RNG);
+RNG = [1,7,N1,7];
+ws_temp2=csvread(MET_2009, 1, 7,RNG);
+ws_2009 = (ws_temp2+ ws_temp1)/2;
+
+RNG = [1,5,N1,5];
+ws_temp1=csvread(MET_2010, 1, 5,RNG);
+RNG = [1,7,N1,7];
+ws_temp2=csvread(MET_2010, 1, 7,RNG);
+ws_2010 = (ws_temp2+ ws_temp1)/2;
+clear ws_temp1;
+clear ws_temp2;
+
+% ws data clean
+b= find(ws_2009<0);
+ws_2009(b)=0;
+
+
+b= find(ws_2009<0);
+ws_2009(b)=0;
+
+b= find(isnan(ws_2009));
+ws_2009(b)=0;
+
+b= find(ws_2010<0);
+ws_2010(b)=0;
+
+b= find(isnan(ws_2010));
+ws_2010(b)=0;
+
+b= find(ws_2009>25);
+ws_2009(b)=0;
+b= find(ws_2010>25);
+ws_2010(b)=0;
+
+
+
+
+%get dir data
+
+RNG = [1,6,N2,6];
+wdir_temp1=csvread(MET_2008, 1, 6,RNG);
+RNG = [1,8,N2,8];
+wdir_temp2=csvread(MET_2008, 1, 8,RNG);
+wdir_2008 = (wdir_temp1+ wdir_temp2)/2;
+b= find(isnan(wdir_2008));
+ws_2008(b)=0;
+
+RNG = [1,6,N1,6];
+wdir_temp1=csvread(MET_2009, 1, 6,RNG);
+RNG = [1,8,N1,8];
+wdir_temp2=csvread(MET_2009, 1, 8,RNG);
+wdir_2009 = (wdir_temp1+ wdir_temp2)/2;
+b= find(isnan(wdir_2009));
+wdir_2009(b)=0;
+
+
+RNG = [1,6,N1,6];
+wdir_temp1=csvread(MET_2010, 1, 6,RNG);
+RNG = [1,8,N1,8];
+wdir_temp2=csvread(MET_2010, 1, 8,RNG);
+wdir_2010 = (wdir_temp1+ wdir_temp2)/2;
+clear wdir_temp1;
+clear wdir_temp2;
+
+b= find(isnan(wdir_2010));
+wdir_2010(b)=0;
+
+
+
+%clean 2009 dir data
+for i = 1:N1
+    wdir_2009(i) = mod(wdir_2009(i),360);
+end
+
+pwdir_2009(1)=wdir_2008(end);
+for i=1+1:size(wdir_2009,1)
+    pwdir_2009(i)=wdir_2009(i-1);
+end
+
+
+for i=1:N1
+    delta_dir_2009(i)=wdir_2009(i)-pwdir_2009(i);
+end
+
+b= find(delta_dir_2009<0);
+delta_dir_2009(b)=delta_dir_2009(b)+360;
+
+
+
+%clean 2010 dir data
+for i = 1:N1
+    wdir_2010(i) = mod(wdir_2010(i),360);
+end
+
+pwdir_2010(1)=wdir_2009(end);
+for i=1+1:size(wdir_2010,1)
+    pwdir_2010(i)=wdir_2010(i-1);
+end
+
+for i=1:N1
+    delta_dir_2010(i)=wdir_2010(i)-pwdir_2010(i);
+end
+
+b= find(delta_dir_2010<0);
+delta_dir_2010(b)=delta_dir_2010(b)+360;
+[f,x] = ksdensity(delta_dir_2010);
+plot(x,f)
+
+
+delta_dir_2009 = delta_dir_2009';
+delta_dir_2010 = delta_dir_2010';
+
+sum_pmit_2008 = sum_pmit_2008/1000;
+sum_pmit_2009 = sum_pmit_2009/1000;
+sum_pmit_2010 = sum_pmit_2010/1000;
+
+% per_pge_2009(1)=sum_pge_2008(end);
+% for i=1+1:size(sum_pge_2009,1)
+%     per_pge_2009(i)=sum_pge_2009(i-1);
+% end
+% 
+% per_pge_2010(1)=sum_pge_2009(end);
+% for i=1+1:size(sum_pge_2010,1)
+%     per_pge_2010(i)=sum_pge_2010(i-1);
+% end
+
+
+pmit_l1_2009(1)=sum_pmit_2008(end);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l1_2009(i)=sum_pmit_2009(i-1);
+end
+
+
+pmit_l2_2009(1)=sum_pmit_2008(end-1);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l2_2009(i)=pmit_l1_2009(i-1);
+end
+
+
+pmit_l3_2009(1)=sum_pmit_2008(end-2);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l3_2009(i)=pmit_l2_2009(i-1);
+end
+
+pmit_l4_2009(1)=sum_pmit_2008(end-3);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l4_2009(i)=pmit_l3_2009(i-1);
+end
+
+pmit_l5_2009(1)=sum_pmit_2008(end-4);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l5_2009(i)=pmit_l4_2009(i-1);
+end
+
+pmit_l6_2009(1)=sum_pmit_2008(end-5);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l6_2009(i)=pmit_l5_2009(i-1);
+end
+
+
+% for hour ahead data
+pmit_l7_2009(1)=sum_pmit_2008(end-6);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l7_2009(i)=pmit_l6_2009(i-1);
+end
+
+pmit_l8_2009(1)=sum_pmit_2008(end-7);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l8_2009(i)=pmit_l7_2009(i-1);
+end
+
+pmit_l9_2009(1)=sum_pmit_2008(end-8);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l9_2009(i)=pmit_l8_2009(i-1);
+end
+
+pmit_l10_2009(1)=sum_pmit_2008(end-9);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l10_2009(i)=pmit_l9_2009(i-1);
+end
+
+pmit_l11_2009(1)=sum_pmit_2008(end-10);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l11_2009(i)=pmit_l10_2009(i-1);
+end
+
+pmit_l12_2009(1)=sum_pmit_2008(end-11);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l12_2009(i)=pmit_l11_2009(i-1);
+end
+
+
+
+pmit_l1_2009 = pmit_l1_2009';
+pmit_l2_2009 = pmit_l2_2009';
+pmit_l3_2009 = pmit_l3_2009';
+pmit_l4_2009 = pmit_l4_2009';
+pmit_l5_2009 = pmit_l5_2009';
+pmit_l6_2009 = pmit_l6_2009';
+
+pmit_l7_2009 = pmit_l7_2009';
+pmit_l8_2009 = pmit_l8_2009';
+pmit_l9_2009 = pmit_l9_2009';
+pmit_l10_2009 = pmit_l10_2009';
+pmit_l11_2009 = pmit_l11_2009';
+pmit_l12_2009 = pmit_l12_2009';
+
+
+
+
+
+pwdir_2009 = pwdir_2009';
+pwdir_2010 = pwdir_2010';
+
+% pmit_l4_2009 = pmit_l4_2009';
+% pmit_l5_2009 = pmit_l5_2009';
+% pmit_l6_2009 = pmit_l6_2009';
+% 
+% 
+% pwdir_2009 = pwdir_2009';
+% pwdir_2010 = pwdir_2010';
+
+
+
+ppmit_2009 = cat(2,ws_2009,delta_dir_2009,...
+pmit_l12_2009,pmit_l11_2009,pmit_l10_2009,...
+pmit_l9_2009,pmit_l8_2009,pmit_l7_2009,...
+pmit_l6_2009,pmit_l5_2009,pmit_l4_2009,...
+pmit_l3_2009,pmit_l2_2009,pmit_l1_2009,sum_pmit_2009);
+
+
+clear pmit_l12_2009
+clear pmit_l11_2009
+clear pmit_l10_2009
+clear pmit_l9_2009
+clear pmit_l8_2009
+clear pmit_l7_2009
+clear pmit_l6_2009
+clear pmit_l5_2009
+clear pmit_l4_2009
+clear pmit_l3_2009
+clear pmit_l2_2009
+clear pmit_l1_2009
+
+
+pmit_l1_2010(1)=sum_pmit_2009(end);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l1_2010(i)=sum_pmit_2010(i-1);
+end
+
+
+pmit_l2_2010(1)=sum_pmit_2009(end-1);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l2_2010(i)=pmit_l1_2010(i-1);
+end
+
+
+pmit_l3_2010(1)=sum_pmit_2009(end-2);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l3_2010(i)=pmit_l2_2010(i-1);
+end
+
+pmit_l4_2010(1)=sum_pmit_2009(end-3);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l4_2010(i)=pmit_l3_2010(i-1);
+end
+
+pmit_l5_2010(1)=sum_pmit_2009(end-4);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l5_2010(i)=pmit_l4_2010(i-1);
+end
+
+pmit_l6_2010(1)=sum_pmit_2009(end-5);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l6_2010(i)=pmit_l5_2010(i-1);
+end
+
+
+pmit_l7_2010(1)=sum_pmit_2009(end-6);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l7_2010(i)=pmit_l6_2010(i-1);
+end
+
+pmit_l8_2010(1)=sum_pmit_2009(end-7);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l8_2010(i)=pmit_l7_2010(i-1);
+end
+
+
+pmit_l9_2010(1)=sum_pmit_2009(end-8);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l9_2010(i)=pmit_l8_2010(i-1);
+end
+
+pmit_l10_2010(1)=sum_pmit_2009(end-9);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l10_2010(i)=pmit_l9_2010(i-1);
+end
+
+pmit_l11_2010(1)=sum_pmit_2009(end-10);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l11_2010(i)=pmit_l10_2010(i-1);
+end
+
+pmit_l12_2010(1)=sum_pmit_2009(end-11);
+for i=1+1:size(sum_pmit_2009,1)
+    pmit_l12_2010(i)=pmit_l11_2010(i-1);
+end
+
+
+%
+pmit_l1_2010 = pmit_l1_2010';
+pmit_l2_2010 = pmit_l2_2010';
+pmit_l3_2010 = pmit_l3_2010';
+pmit_l4_2010 = pmit_l4_2010';
+pmit_l5_2010 = pmit_l5_2010';
+pmit_l6_2010 = pmit_l6_2010';
+
+pmit_l7_2010 = pmit_l7_2010';
+pmit_l8_2010 = pmit_l8_2010';
+pmit_l9_2010 = pmit_l9_2010';
+pmit_l10_2010 = pmit_l10_2010';
+pmit_l11_2010 = pmit_l11_2010';
+% pmit_l12_2010 = pmit_l12_2010';
+
+
+ppmit_2010 = cat(2,ws_2010,delta_dir_2010,...
+pmit_l12_2010,pmit_l11_2010,pmit_l10_2010,...
+pmit_l9_2010,pmit_l8_2010,pmit_l7_2010,...
+pmit_l6_2010,pmit_l5_2010,pmit_l4_2010,...
+pmit_l3_2010,pmit_l2_2010,pmit_l1_2010,sum_pmit_2010);
+
+
+clear pmit_l12_2010
+clear pmit_l11_2010
+clear pmit_l10_2010
+clear pmit_l9_2010
+clear pmit_l8_2010
+clear pmit_l7_2010
+clear pmit_l6_2010
+clear pmit_l5_2010
+clear pmit_l4_2010
+clear pmit_l3_2010
+clear pmit_l2_2010
+clear pmit_l1_2010
+
+
+
+csvwrite('ppmit_2009.csv',ppmit_2009)
+
+csvwrite('ppmit_2010.csv',ppmit_2010)
